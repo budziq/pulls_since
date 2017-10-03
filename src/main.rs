@@ -6,8 +6,8 @@ extern crate reqwest;
 extern crate chrono;
 extern crate hyper;
 
-use std::fmt;
-use chrono::DateTime;
+use std::{fmt, env};
+use chrono::{DateTime, Datelike, NaiveDate, Local};
 use hyper::header::{Link, RelationType};
 
 #[derive(Deserialize, Debug)]
@@ -103,7 +103,15 @@ impl Iterator for PullList {
 
 fn run() -> Result<()> {
 
-    let since = chrono::NaiveDate::parse_from_str("2017/07/14", "%Y/%m/%d").unwrap();
+    let date = env::args().skip(1).next().expect(
+        "program requires date argument dd.mm.yyy",
+    );
+    let since = NaiveDate::parse_from_str(&date, "%Y/%m/%d")
+        .or_else(|_| NaiveDate::parse_from_str(&date, "%d.%m.%Y"))
+        .or_else(|_| {
+            NaiveDate::parse_from_str(&format!("{}.{}", date, Local::now().year()), "%d.%m.%Y")
+        })
+        .expect(&format!("could not parse date: '{}'", date));
 
     let request_url = format!(
         "https://api.github.com/repos/{owner}/{repo}/pulls?state=closed",
