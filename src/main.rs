@@ -2,13 +2,16 @@
 extern crate error_chain;
 #[macro_use]
 extern crate serde_derive;
+#[macro_use]
+extern crate clap;
 extern crate reqwest;
 extern crate chrono;
 extern crate hyper;
 
-use std::{fmt, env};
+use std::fmt;
 use chrono::{DateTime, Datelike, NaiveDate, Local};
 use hyper::header::{Link, RelationType};
+use clap::{App, Arg, ArgMatches};
 
 #[derive(Deserialize, Debug)]
 struct User {
@@ -41,7 +44,7 @@ impl fmt::Display for Pull {
 error_chain! {
     foreign_links {
         Reqwest(reqwest::Error);
-
+        Chrono(chrono::ParseError);
     }
 }
 
@@ -101,27 +104,51 @@ impl Iterator for PullList {
     }
 }
 
-fn run() -> Result<()> {
+fn app<'a, 'b>() -> App<'a, 'b> {
+    let args = vec![Arg::with_name("since")
+                    .long("since")
+                    .takes_value(true)
+                    .required(true)
+                    .help("date argument dd.mm.yyy"),
+                Arg::with_name("repo")
+                    .long("repo")
+                    .takes_value(true)
+                    .required(true)
+                    .help("owner/repo")];
 
-    let date = env::args().skip(1).next().expect(
-        "program requires date argument dd.mm.yyy",
-    );
+    App::new("pulls_since")
+        .version(crate_version!())
+        .about("print Markdown formatted list of pull requests closed since given date")
+        .args(&args)
+}
+
+fn since<'a>(args: &ArgMatches<'a>) -> Result<NaiveDate> {
+    let date = args.value_of("since").ok_or("missing `since` argument")?;
+
     let since = NaiveDate::parse_from_str(&date, "%Y/%m/%d")
         .or_else(|_| NaiveDate::parse_from_str(&date, "%d.%m.%Y"))
         .or_else(|_| {
             NaiveDate::parse_from_str(&format!("{}.{}", date, Local::now().year()), "%d.%m.%Y")
-        })
-        .expect(&format!("could not parse date: '{}'", date));
+        })?;
 
-    let request_url = format!(
-        "https://api.github.com/repos/{owner}/{repo}/pulls?state=closed",
-        owner = "rust-lang-nursery",
-        repo = "rust-cookbook"
-    );
-    println!("{}", request_url);
+    Ok(since)
+}
 
-    for pull in PullList::for_addr(&request_url)? {
-        //.filter(|pull| pull.closed_at.date() > since ) {
+fn url<'a>(args: &ArgMatches<'a>) -> Result<String> {
+    let repo = args.value_of("repo").ok_or("missing `repo` argument")?;
+
+    Ok(format!("https://api.github.com/repos/{}/pulls?state=closed", repo))
+}
+
+fn run() -> Result<()> {
+    let args = app().get_matches();
+
+    let since = since(&args)?;
+    let url = url(&args)?;
+
+    println!("{}", url);
+
+    for pull in PullList::for_addr(&url)? {
         let pull = pull?;
         if pull.closed_at.date().naive_utc() > since {
             println!("{}", pull);
