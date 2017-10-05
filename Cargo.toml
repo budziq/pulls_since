@@ -1,6 +1,6 @@
 [package]
 authors = ["Michał Budzyński <m.budzynski@samsung.com>"]
-name = "test_pulls"
+name = "pulls_since"
 version = "0.1.0"
 [dependencies]
 error-chain = "*"
@@ -8,6 +8,7 @@ hyper = "*"
 reqwest = "*"
 serde = "*"
 serde_derive = "*"
+clap = "*"
 
 [dependencies.chrono]
 features = ["serde"]
