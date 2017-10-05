@@ -59,7 +59,7 @@ impl PullList {
         Ok(PullList {
             pulls: Vec::new().into_iter(),
             next_link: Some(url.to_owned()),
-            client: reqwest::Client::new()?,
+            client: reqwest::Client::new(),
         })
     }
 
@@ -73,7 +73,7 @@ impl PullList {
         }
 
         let url = self.next_link.take().unwrap();
-        let mut response = self.client.get(&url)?.send()?;
+        let mut response = self.client.get(&url).send()?;
         self.pulls = response.json::<Vec<Pull>>()?.into_iter();
 
         if let Some(header) = response.headers().get::<Link>() {

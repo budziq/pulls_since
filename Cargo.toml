@@ -1,14 +1,15 @@
 [package]
-authors = ["Michał Budzyński <m.budzynski@samsung.com>"]
+authors = ["Michał Budzyński <budziq@gmail.com>"]
 name = "pulls_since"
 version = "0.1.0"
+
 [dependencies]
-error-chain = "*"
-hyper = "*"
-reqwest = "*"
-serde = "*"
-serde_derive = "*"
-clap = "*"
+error-chain = "0.11"
+hyper = "0.11"
+reqwest = "0.8"
+serde = "1.0"
+serde_derive = "1.0"
+clap = "2.26"
 
 [dependencies.chrono]
 features = ["serde"]
