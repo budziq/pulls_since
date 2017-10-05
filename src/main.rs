@@ -105,20 +105,26 @@ impl Iterator for PullList {
 }
 
 fn app<'a, 'b>() -> App<'a, 'b> {
-    let args = vec![Arg::with_name("since")
-                    .long("since")
-                    .takes_value(true)
-                    .required(true)
-                    .help("date argument dd.mm.yyy"),
-                Arg::with_name("repo")
-                    .long("repo")
-                    .takes_value(true)
-                    .required(true)
-                    .help("owner/repo")];
+    let args = vec![
+        Arg::with_name("since")
+            .short("s")
+            .long("since")
+            .takes_value(true)
+            .required(true)
+            .help("date argument dd.mm.yyyy"),
+        Arg::with_name("repo")
+            .short("r")
+            .long("repo")
+            .takes_value(true)
+            .required(true)
+            .help("owner/repo"),
+    ];
 
     App::new("pulls_since")
         .version(crate_version!())
-        .about("print Markdown formatted list of pull requests closed since given date")
+        .about(
+            "Print Markdown formatted list of pull requests closed since given date",
+        )
         .args(&args)
 }
 
@@ -137,7 +143,10 @@ fn since<'a>(args: &ArgMatches<'a>) -> Result<NaiveDate> {
 fn url<'a>(args: &ArgMatches<'a>) -> Result<String> {
     let repo = args.value_of("repo").ok_or("missing `repo` argument")?;
 
-    Ok(format!("https://api.github.com/repos/{}/pulls?state=closed", repo))
+    Ok(format!(
+        "https://api.github.com/repos/{}/pulls?state=closed",
+        repo
+    ))
 }
 
 fn run() -> Result<()> {
