@@ -2,6 +2,16 @@
 authors = ["Michał Budzyński <budziq@gmail.com>"]
 name = "pulls_since"
 version = "0.1.0"
+description = """
+Micro tool to print Markdown formatted list of pull requests
+closed on a given github repository since given date
+"""
+homepage = "https://github.com/budziq/pulls_since"
+repository = "https://github.com/budziq/pulls_since"
+readme = "README.md"
+keywords = ["github", "pull-requests"]
+categories = ["command-line-utilities"]
+license = "MIT"
 
 [dependencies]
 error-chain = "0.11"
