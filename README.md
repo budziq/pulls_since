@@ -1,4 +1,5 @@
-# pulls_since
+# pulls_since [![crates.io](https://img.shields.io/crates/v/pulls_since.svg)](https://crates.io/crates/pulls_since)
+
 Micro tool to print Markdown formatted list of pull requests
 closed on a given github repository since given date
 
