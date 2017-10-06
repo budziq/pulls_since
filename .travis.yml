@@ -1,0 +1,32 @@
+language: rust
+
+matrix:
+  include:
+    - os: linux
+      rust: stable
+    - os: linux
+      rust: nightly
+
+script:
+  - cargo build --verbose --all
+  - cargo test --verbose --all
+
+deploy:
+  on:
+    condition: $DEPLOY = never
+
+cache: cargo
+before_cache:
+  # Travis can't cache files that are not readable by "others"
+  - chmod -R a+r $HOME/.cargo
+
+branches:
+  only:
+    # release tags
+    - /^v\d+\.\d+\.\d+.*$/
+    - master
+    - next
+
+notifications:
+  email:
+    on_success: never
