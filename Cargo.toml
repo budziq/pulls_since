@@ -13,6 +13,9 @@ keywords = ["github", "pull-requests"]
 categories = ["command-line-utilities"]
 license = "MIT"
 
+[badges]
+travis-ci = { repository = "budziq/pulls_since" }
+
 [dependencies]
 error-chain = "0.11"
 hyper = "0.11"
