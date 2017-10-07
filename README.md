@@ -33,6 +33,20 @@ Few date formats are available. Including "dd.mm.yyyy", "dd.mm" and "yyyy/mm/dd"
 - @nocduro [Add rayon thumbnail generation example](https://github.com/rust-lang-nursery/rust-cookbook/pull/275)
 - @ericho [Use a threadpool to calculate SHA1 in all *.iso files in a folder.](https://github.com/rust-lang-nursery/rust-cookbook/pull/274)
 
+### Authorization
+
+By default `pulls_since` uses unauthorized flow which will get your requests
+throthled quickly. To make large number of requests or operate on really big
+repositories please use the github
+[token authorization](https://help.github.com/articles/creating-a-personal-access-token-for-the-command-line/).
+
+Either export your token as an environmental variable or put it in an `.env`
+file somewhere above your current woking directory.
+
+```bash
+GITHUB_TOKEN=39984770ba9ba1c663b6b50beab9b004
+```
+
 ## License
 
 [MIT](LICENSE)
