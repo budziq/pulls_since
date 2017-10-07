@@ -112,6 +112,11 @@ fn app<'a, 'b>() -> App<'a, 'b> {
             .takes_value(true)
             .required(true)
             .help("date argument dd.mm.yyyy"),
+        Arg::with_name("until")
+            .short("u")
+            .long("until")
+            .takes_value(true)
+            .help("end date argument dd.mm.yyyy"),
         Arg::with_name("repo")
             .short("r")
             .long("repo")
@@ -128,16 +133,24 @@ fn app<'a, 'b>() -> App<'a, 'b> {
         .args(&args)
 }
 
-fn since<'a>(args: &ArgMatches<'a>) -> Result<NaiveDate> {
-    let date = args.value_of("since").ok_or("missing `since` argument")?;
-
-    let since = NaiveDate::parse_from_str(&date, "%Y/%m/%d")
+fn parse_date(date: &str) -> Result<NaiveDate> {
+    Ok(NaiveDate::parse_from_str(&date, "%Y/%m/%d")
         .or_else(|_| NaiveDate::parse_from_str(&date, "%d.%m.%Y"))
         .or_else(|_| {
             NaiveDate::parse_from_str(&format!("{}.{}", date, Local::now().year()), "%d.%m.%Y")
-        })?;
+        })?)
+}
 
-    Ok(since)
+fn since<'a>(args: &ArgMatches<'a>) -> Result<NaiveDate> {
+    parse_date(args.value_of("since").ok_or("missing `since` argument")?)
+}
+
+fn until<'a>(args: &ArgMatches<'a>) -> Result<Option<NaiveDate>> {
+    if let Some(until_s) = args.value_of("until") {
+        parse_date(until_s).map(Some)
+    } else {
+        Ok(None)
+    }
 }
 
 fn url<'a>(args: &ArgMatches<'a>) -> Result<String> {
@@ -153,13 +166,15 @@ fn run() -> Result<()> {
     let args = app().get_matches();
 
     let since = since(&args)?;
+    let until = until(&args)?;
     let url = url(&args)?;
 
     println!("{}", url);
 
     for pull in PullList::for_addr(&url)? {
         let pull = pull?;
-        if pull.closed_at.date().naive_utc() > since {
+        let pull_closed = pull.closed_at.date().naive_utc();
+        if pull_closed > since && (until.is_none() || pull_closed < *until.as_ref().unwrap()) {
             println!("{}", pull);
         }
     }
