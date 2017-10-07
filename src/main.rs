@@ -13,6 +13,11 @@ use chrono::{DateTime, Datelike, NaiveDate, Local};
 use hyper::header::{Link, RelationType};
 use clap::{App, Arg, ArgMatches};
 
+const EXCLUDE_LOGIN_ARG: &str = "login";
+const SINCE_ARG: &str = "since";
+const UNTIL_ARG: &str = "until";
+const REPO_ARG: &str = "repo";
+
 #[derive(Deserialize, Debug)]
 struct User {
     login: String,
@@ -104,20 +109,52 @@ impl Iterator for PullList {
     }
 }
 
+struct Predicate {
+    since: Option<NaiveDate>,
+    until: Option<NaiveDate>,
+    exclude_login: Option<String>,
+}
+
+impl Predicate {
+    fn from_args<'a>(args: &ArgMatches<'a>) -> Result<Predicate> {
+        let exclude_login = args.value_of(EXCLUDE_LOGIN_ARG).map(String::from);
+
+        Ok(Predicate {
+            since: date_arg(args, SINCE_ARG)?,
+            until: date_arg(args, UNTIL_ARG)?,
+            exclude_login: exclude_login,
+        })
+    }
+
+    fn test(&self, pull: &Pull) -> bool {
+        let pull_closed = pull.closed_at.date().naive_utc();
+        self.since.map(|v| pull_closed > v).unwrap_or(true) &&
+            self.until.map(|v| pull_closed < v).unwrap_or(true) &&
+            self.exclude_login
+                .as_ref()
+                .map(|ex| *ex != pull.user.login)
+                .unwrap_or(true)
+    }
+}
+
 fn app<'a, 'b>() -> App<'a, 'b> {
     let args = vec![
-        Arg::with_name("since")
+        Arg::with_name(SINCE_ARG)
             .short("s")
             .long("since")
             .takes_value(true)
-            .required(true)
-            .help("date argument dd.mm.yyyy"),
-        Arg::with_name("until")
+            .help("start date argument dd.mm.yyyy"),
+        Arg::with_name(UNTIL_ARG)
             .short("u")
             .long("until")
             .takes_value(true)
             .help("end date argument dd.mm.yyyy"),
-        Arg::with_name("repo")
+        Arg::with_name(EXCLUDE_LOGIN_ARG)
+            .short("e")
+            .long("exclude-login")
+            .takes_value(true)
+            .help("ommit PR's by given login (bots etc.)"),
+        Arg::with_name(REPO_ARG)
             .short("r")
             .long("repo")
             .takes_value(true)
@@ -141,20 +178,16 @@ fn parse_date(date: &str) -> Result<NaiveDate> {
         })?)
 }
 
-fn since<'a>(args: &ArgMatches<'a>) -> Result<NaiveDate> {
-    parse_date(args.value_of("since").ok_or("missing `since` argument")?)
-}
 
-fn until<'a>(args: &ArgMatches<'a>) -> Result<Option<NaiveDate>> {
-    if let Some(until_s) = args.value_of("until") {
-        parse_date(until_s).map(Some)
-    } else {
-        Ok(None)
+fn date_arg<'a>(args: &ArgMatches<'a>, key: &str) -> Result<Option<NaiveDate>> {
+    match args.value_of(key) {
+        Some(key_s) => parse_date(key_s).map(Some),
+        None => Ok(None),
     }
 }
 
 fn url<'a>(args: &ArgMatches<'a>) -> Result<String> {
-    let repo = args.value_of("repo").ok_or("missing `repo` argument")?;
+    let repo = args.value_of(REPO_ARG).ok_or("missing `repo` argument")?;
 
     Ok(format!(
         "https://api.github.com/repos/{}/pulls?state=closed",
@@ -165,16 +198,14 @@ fn url<'a>(args: &ArgMatches<'a>) -> Result<String> {
 fn run() -> Result<()> {
     let args = app().get_matches();
 
-    let since = since(&args)?;
-    let until = until(&args)?;
+    let pred = Predicate::from_args(&args)?;
     let url = url(&args)?;
 
     println!("{}", url);
 
     for pull in PullList::for_addr(&url)? {
         let pull = pull?;
-        let pull_closed = pull.closed_at.date().naive_utc();
-        if pull_closed > since && (until.is_none() || pull_closed < *until.as_ref().unwrap()) {
+        if pred.test(&pull) {
             println!("{}", pull);
         }
     }
