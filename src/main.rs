@@ -4,14 +4,16 @@ extern crate error_chain;
 extern crate serde_derive;
 #[macro_use]
 extern crate clap;
+extern crate dotenv;
 extern crate reqwest;
 extern crate chrono;
 extern crate hyper;
 
-use std::fmt;
+use std::{env, fmt};
 use chrono::{DateTime, Datelike, NaiveDate, Local};
-use hyper::header::{Link, RelationType};
+use hyper::header::{Authorization, Link, RelationType};
 use clap::{App, Arg, ArgMatches};
+use dotenv::dotenv;
 
 const EXCLUDE_LOGIN_ARG: &str = "login";
 const SINCE_ARG: &str = "since";
@@ -57,6 +59,7 @@ struct PullList {
     pulls: <Vec<Pull> as IntoIterator>::IntoIter,
     next_link: Option<String>,
     client: reqwest::Client,
+    github_token: Option<String>,
 }
 
 impl PullList {
@@ -65,6 +68,7 @@ impl PullList {
             pulls: Vec::new().into_iter(),
             next_link: Some(url.to_owned()),
             client: reqwest::Client::new(),
+            github_token: env::var("GITHUB_TOKEN").ok(),
         })
     }
 
@@ -78,7 +82,17 @@ impl PullList {
         }
 
         let url = self.next_link.take().unwrap();
-        let mut response = self.client.get(&url).send()?;
+        let mut req = self.client.get(&url);
+
+        if let Some(ref token) = self.github_token {
+            req.header(Authorization(format!("token {}", token)));
+        }
+
+        let mut response = req.send()?;
+        if !response.status().is_success() {
+            bail!("Server error: {:?}", response.status());
+        }
+
         self.pulls = response.json::<Vec<Pull>>()?.into_iter();
 
         if let Some(header) = response.headers().get::<Link>() {
@@ -196,6 +210,8 @@ fn url<'a>(args: &ArgMatches<'a>) -> Result<String> {
 }
 
 fn run() -> Result<()> {
+    dotenv().ok();
+
     let args = app().get_matches();
 
     let pred = Predicate::from_args(&args)?;
