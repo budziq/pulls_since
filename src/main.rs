@@ -18,7 +18,7 @@ use dotenv::dotenv;
 const EXCLUDE_LOGIN_ARG: &str = "login";
 const SINCE_ARG: &str = "since";
 const UNTIL_ARG: &str = "until";
-const REPO_ARG: &str = "repo";
+const REPOS_ARG: &str = "repo";
 
 #[derive(Deserialize, Debug)]
 struct User {
@@ -55,16 +55,16 @@ error_chain! {
     }
 }
 
-struct PullList {
+struct PullIter {
     pulls: <Vec<Pull> as IntoIterator>::IntoIter,
     next_link: Option<String>,
     client: reqwest::Client,
     github_token: Option<String>,
 }
 
-impl PullList {
+impl PullIter {
     fn for_addr(url: &str) -> Result<Self> {
-        Ok(PullList {
+        Ok(PullIter {
             pulls: Vec::new().into_iter(),
             next_link: Some(url.to_owned()),
             client: reqwest::Client::new(),
@@ -111,7 +111,7 @@ impl PullList {
     }
 }
 
-impl Iterator for PullList {
+impl Iterator for PullIter {
     type Item = Result<Pull>;
 
     fn next(&mut self) -> Option<Self::Item> {
@@ -168,12 +168,13 @@ fn app<'a, 'b>() -> App<'a, 'b> {
             .long("exclude-login")
             .takes_value(true)
             .help("ommit PR's by given login (bots etc.)"),
-        Arg::with_name(REPO_ARG)
+        Arg::with_name(REPOS_ARG)
             .short("r")
-            .long("repo")
+            .long("repos")
+            .multiple(true)
             .takes_value(true)
             .required(true)
-            .help("owner/repo"),
+            .help("space separated list of 'owner/repo'"),
     ];
 
     App::new("pulls_since")
@@ -185,8 +186,8 @@ fn app<'a, 'b>() -> App<'a, 'b> {
 }
 
 fn parse_date(date: &str) -> Result<NaiveDate> {
-    Ok(NaiveDate::parse_from_str(&date, "%Y/%m/%d")
-        .or_else(|_| NaiveDate::parse_from_str(&date, "%d.%m.%Y"))
+    Ok(NaiveDate::parse_from_str(date, "%Y/%m/%d")
+        .or_else(|_| NaiveDate::parse_from_str(date, "%d.%m.%Y"))
         .or_else(|_| {
             NaiveDate::parse_from_str(&format!("{}.{}", date, Local::now().year()), "%d.%m.%Y")
         })?)
@@ -200,32 +201,36 @@ fn date_arg<'a>(args: &ArgMatches<'a>, key: &str) -> Result<Option<NaiveDate>> {
     }
 }
 
-fn url<'a>(args: &ArgMatches<'a>) -> Result<String> {
-    let repo = args.value_of(REPO_ARG).ok_or("missing `repo` argument")?;
+fn print_pulls_for_repo(repo: &str, pred: &Predicate) -> Result<()> {
+    let url = format!("https://api.github.com/repos/{}/pulls?state=closed", repo);
 
-    Ok(format!(
-        "https://api.github.com/repos/{}/pulls?state=closed",
-        repo
-    ))
+    let mut pulls = PullIter::for_addr(&url)?
+        .filter_map(Result::ok)
+        .filter(|pull| pred.test(pull))
+        .peekable();
+
+    if pulls.peek().is_none() {
+        return Ok(());
+    }
+
+    println!("\n#### {}\n", repo);
+
+    for pull in pulls {
+        println!("{}", pull);
+    }
+    Ok(())
 }
 
 fn run() -> Result<()> {
     dotenv().ok();
 
     let args = app().get_matches();
-
     let pred = Predicate::from_args(&args)?;
-    let url = url(&args)?;
+    let repos = args.values_of(REPOS_ARG).ok_or("missing `repo` argument")?;
 
-    println!("{}", url);
-
-    for pull in PullList::for_addr(&url)? {
-        let pull = pull?;
-        if pred.test(&pull) {
-            println!("{}", pull);
-        }
+    for repo in repos {
+        print_pulls_for_repo(repo, &pred)?;
     }
-
     Ok(())
 }
 
