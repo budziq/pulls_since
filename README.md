@@ -3,14 +3,12 @@
 Micro tool to print Markdown formatted list of pull requests
 closed on a given github repository since given date
 
-## Example usage
-
 ```
-pulls_since 0.3.0
+pulls_since 0.4.0
 Print Markdown formatted list of pull requests closed since given date
 
 USAGE:
-    pulls_since [OPTIONS] --repos <repo>...
+    pulls_since [OPTIONS] --owners <owner>... --repos <repo>...
 
 FLAGS:
     -h, --help       Prints help information
@@ -18,15 +16,24 @@ FLAGS:
 
 OPTIONS:
     -e, --exclude-login <login>    ommit PR's by given login (bots etc.)
+    -o, --owners <owner>...        space separated list of owners or org names
     -r, --repos <repo>...          space separated list of 'owner/repo'
     -s, --since <since>            start date argument dd.mm.yyyy
     -u, --until <until>            end date argument dd.mm.yyyy
 ```
 
-Show all pull requests to [rust-lang-nursery/rust-cookbook](https://github.com/rust-lang-nursery/rust-cookbook) and [budziq/pulls_since](https://github.com/budziq/pulls_since)
-between 30.09.2017 and 07.10.2017 omitting ones made by user [@budziq](https://github.com/budziq).
+## Example usage
+
+- Show all pull requests to [rust-lang-nursery/rust-cookbook](https://github.com/rust-lang-nursery/rust-cookbook) and [budziq/pulls_since](https://github.com/budziq/pulls_since)
+between 30.09.2017 and 07.10.2017 omitting ones made by user [budziq](https://github.com/budziq).
 ```bash
-pulls_since -r rust-lang-nursery/rust-cookbook budziq/pulls_since -s 30.09.2017 -u 07.10.2017 -e budziq
+pulls_since --repos rust-lang-nursery/rust-cookbook budziq/pulls_since -s 30.09.2017 -u 07.10.2017 -e budziq
+```
+
+- Show all pull requests within github organizaion [rust-lang-nursery](https://github.com/rust-lang-nursery) or against repositories
+owned by user [budziq](https://github.com/budziq) made since 30.09.2017.
+```bash
+pulls_since --owners rust-lang-nursery budziq -s 30.09.2017
 ```
 
 Few date formats are available. Including "dd.mm.yyyy", "dd.mm" and "yyyy/mm/dd"

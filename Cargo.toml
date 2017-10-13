@@ -1,7 +1,7 @@
 [package]
 authors = ["Michał Budzyński <budziq@gmail.com>"]
 name = "pulls_since"
-version = "0.3.0"
+version = "0.4.0"
 description = """
 Micro tool to print Markdown formatted list of pull requests
 closed on a given github repository since given date
