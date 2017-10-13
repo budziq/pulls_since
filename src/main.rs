@@ -11,6 +11,7 @@ extern crate chrono;
 extern crate hyper;
 
 use std::{env, fmt};
+use std::collections::BTreeSet;
 use chrono::{DateTime, Datelike, NaiveDate, Local};
 use hyper::header::{Authorization, Link, RelationType};
 use clap::{App, Arg, ArgMatches};
@@ -21,6 +22,7 @@ const EXCLUDE_LOGIN_ARG: &str = "login";
 const SINCE_ARG: &str = "since";
 const UNTIL_ARG: &str = "until";
 const REPOS_ARG: &str = "repo";
+const OWNER_ARG: &str = "owner";
 
 #[derive(Deserialize, Debug)]
 struct User {
@@ -35,6 +37,12 @@ struct Pull {
     title: String,
     user: User,
     closed_at: DateTime<chrono::offset::Utc>,
+    // remaining fields not deserialized for brevity
+}
+
+#[derive(Deserialize, Debug)]
+struct Repo {
+    full_name: String,
     // remaining fields not deserialized for brevity
 }
 
@@ -171,6 +179,13 @@ fn app<'a, 'b>() -> App<'a, 'b> {
             .long("until")
             .takes_value(true)
             .help("end date argument dd.mm.yyyy"),
+        Arg::with_name(OWNER_ARG)
+            .short("o")
+            .long("owners")
+            .multiple(true)
+            .takes_value(true)
+            .required_unless(REPOS_ARG)
+            .help("space separated list of owners or org names"),
         Arg::with_name(EXCLUDE_LOGIN_ARG)
             .short("e")
             .long("exclude-login")
@@ -181,7 +196,7 @@ fn app<'a, 'b>() -> App<'a, 'b> {
             .long("repos")
             .multiple(true)
             .takes_value(true)
-            .required(true)
+            .required_unless(OWNER_ARG)
             .help("space separated list of 'owner/repo'"),
     ];
 
@@ -229,16 +244,39 @@ fn print_pulls_for_repo(repo: &str, pred: &Predicate) -> Result<()> {
     Ok(())
 }
 
+fn repos_for_owner(org: &str) -> Result<Vec<Repo>> {
+    let url = format!("https://api.github.com/orgs/{}/repos", org);
+
+    PaginatedIter::for_addr(&url)?
+        .collect::<Result<_>>()
+        .or_else(|_| {
+            let url = format!("https://api.github.com/users/{}/repos", org);
+            PaginatedIter::for_addr(&url)?.collect()
+        })
+}
+
 fn run() -> Result<()> {
     dotenv().ok();
 
     let args = app().get_matches();
     let pred = Predicate::from_args(&args)?;
-    let repos = args.values_of(REPOS_ARG).ok_or("missing `repo` argument")?;
+
+    let mut repos = args.values_of(REPOS_ARG)
+        .map(|names| names.into_iter().map(String::from).collect())
+        .unwrap_or_else(BTreeSet::new);
+
+    if let Some(owners) = args.values_of(OWNER_ARG) {
+        repos.extend(
+            owners
+                .flat_map(|owner| repos_for_owner(owner).into_iter())
+                .flat_map(|repos| repos.into_iter().map(|repo| repo.full_name)),
+        );
+    }
 
     for repo in repos {
-        print_pulls_for_repo(repo, &pred)?;
+        print_pulls_for_repo(&repo, &pred)?;
     }
+
     Ok(())
 }
 
