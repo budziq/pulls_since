@@ -1,5 +1,6 @@
 #[macro_use]
 extern crate error_chain;
+extern crate serde;
 #[macro_use]
 extern crate serde_derive;
 #[macro_use]
@@ -14,6 +15,7 @@ use chrono::{DateTime, Datelike, NaiveDate, Local};
 use hyper::header::{Authorization, Link, RelationType};
 use clap::{App, Arg, ArgMatches};
 use dotenv::dotenv;
+use serde::de::DeserializeOwned;
 
 const EXCLUDE_LOGIN_ARG: &str = "login";
 const SINCE_ARG: &str = "since";
@@ -55,25 +57,28 @@ error_chain! {
     }
 }
 
-struct PullIter {
-    pulls: <Vec<Pull> as IntoIterator>::IntoIter,
+struct PaginatedIter<T> {
+    items: <Vec<T> as IntoIterator>::IntoIter,
     next_link: Option<String>,
     client: reqwest::Client,
     github_token: Option<String>,
 }
 
-impl PullIter {
+impl<T> PaginatedIter<T>
+where
+    T: DeserializeOwned,
+{
     fn for_addr(url: &str) -> Result<Self> {
-        Ok(PullIter {
-            pulls: Vec::new().into_iter(),
+        Ok(PaginatedIter {
+            items: Vec::new().into_iter(),
             next_link: Some(url.to_owned()),
             client: reqwest::Client::new(),
             github_token: env::var("GITHUB_TOKEN").ok(),
         })
     }
 
-    fn try_next(&mut self) -> Result<Option<Pull>> {
-        if let Some(pull) = self.pulls.next() {
+    fn try_next(&mut self) -> Result<Option<T>> {
+        if let Some(pull) = self.items.next() {
             return Ok(Some(pull));
         }
 
@@ -93,7 +98,7 @@ impl PullIter {
             bail!("Server error: {:?}", response.status());
         }
 
-        self.pulls = response.json::<Vec<Pull>>()?.into_iter();
+        self.items = response.json::<Vec<T>>()?.into_iter();
 
         if let Some(header) = response.headers().get::<Link>() {
             for val in header.values() {
@@ -107,12 +112,15 @@ impl PullIter {
             }
         }
 
-        Ok(self.pulls.next())
+        Ok(self.items.next())
     }
 }
 
-impl Iterator for PullIter {
-    type Item = Result<Pull>;
+impl<T> Iterator for PaginatedIter<T>
+where
+    T: DeserializeOwned,
+{
+    type Item = Result<T>;
 
     fn next(&mut self) -> Option<Self::Item> {
         match self.try_next() {
@@ -204,7 +212,7 @@ fn date_arg<'a>(args: &ArgMatches<'a>, key: &str) -> Result<Option<NaiveDate>> {
 fn print_pulls_for_repo(repo: &str, pred: &Predicate) -> Result<()> {
     let url = format!("https://api.github.com/repos/{}/pulls?state=closed", repo);
 
-    let mut pulls = PullIter::for_addr(&url)?
+    let mut pulls = PaginatedIter::for_addr(&url)?
         .filter_map(Result::ok)
         .filter(|pull| pred.test(pull))
         .peekable();
