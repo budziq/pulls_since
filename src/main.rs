@@ -8,12 +8,11 @@ extern crate clap;
 extern crate dotenv;
 extern crate reqwest;
 extern crate chrono;
-extern crate hyper;
 
 use std::{env, fmt};
 use std::collections::BTreeSet;
 use chrono::{DateTime, Datelike, NaiveDate, Local};
-use hyper::header::{Authorization, Link, RelationType};
+use reqwest::header::{Authorization, Link, RelationType};
 use clap::{App, Arg, ArgMatches};
 use dotenv::dotenv;
 use serde::de::DeserializeOwned;
